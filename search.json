@@ -1,0 +1,205 @@
+[
+  {
+    "objectID": "blog/posts/2021-02-02-anndata-for-r/index.html",
+    "href": "blog/posts/2021-02-02-anndata-for-r/index.html",
+    "title": "anndata: annotated data in R",
+    "section": "",
+    "text": "anndata is a commonly used Python package for keeping track of data and learned annotations, and can be used to read from and write to the h5ad file format. It is also the main data format used in the scanpy python package (Wolf, Angerer, and Theis 2018).\nHowever, using scanpy/anndata in R can be a major hassle. When trying to read an h5ad file, R users could approach this problem in one of two ways. A) You could read in the file manually (since it’s an H5 file), but this involves a lot of manual work and a lot of understanding on how the h5ad and H5 file formats work (also, expect major headaches from cryptic hdf5r bugs). Or B) interact with scanpy and anndata through reticulate, but run into issues converting some of the python objects into R.\nWe recently published anndata on CRAN, which is an R wrapper for the Python package – with some syntax sprinkled on top to make R users feel more at home.\nThe R anndata is still under active development at github.com/rcannood/anndata. If you encounter any issues, feel free to post an issue on GitHub!"
+  },
+  {
+    "objectID": "blog/posts/2021-02-02-anndata-for-r/index.html#installation",
+    "href": "blog/posts/2021-02-02-anndata-for-r/index.html#installation",
+    "title": "anndata: annotated data in R",
+    "section": "Installation",
+    "text": "Installation\nInstalling anndata is not particularly hard. You do need R and Python to be installed. If you don’t have a working installation of Python, you can let reticulate install Miniconda.\n# install the R anndata package\ninstall.packages(\"anndata\")\n\n# skip this if you wish to use the local python installation\nreticulate::install_miniconda()\n\n# skip this if anndata is already installed\nanndata::install_anndata()"
+  },
+  {
+    "objectID": "blog/posts/2021-02-02-anndata-for-r/index.html#getting-started",
+    "href": "blog/posts/2021-02-02-anndata-for-r/index.html#getting-started",
+    "title": "anndata: annotated data in R",
+    "section": "Getting started",
+    "text": "Getting started\nThe API of anndata is very similar to its Python counterpart. Check out ?anndata for a full list of the functions provided by this package.\nAnnData stores a data matrix X together with annotations of observations obs (obsm, obsp), variables var (varm, varp), and unstructured annotations uns.\nHere is an example of how to create an AnnData object with 2 observations and 3 variables.\n\nlibrary(anndata)\n\nad <- AnnData(\n  X = matrix(1:6, nrow = 2),\n  obs = data.frame(group = c(\"a\", \"b\"), row.names = c(\"s1\", \"s2\")),\n  var = data.frame(type = c(1L, 2L, 3L), row.names = c(\"var1\", \"var2\", \"var3\")),\n  layers = list(\n    spliced = matrix(4:9, nrow = 2),\n    unspliced = matrix(8:13, nrow = 2)\n  ),\n  obsm = list(\n    ones = matrix(rep(1L, 10), nrow = 2),\n    rand = matrix(rnorm(6), nrow = 2),\n    zeros = matrix(rep(0L, 10), nrow = 2)\n  ),\n  varm = list(\n    ones = matrix(rep(1L, 12), nrow = 3),\n    rand = matrix(rnorm(6), nrow = 3),\n    zeros = matrix(rep(0L, 12), nrow = 3)\n  ),\n  uns = list(\n    a = 1, \n    b = data.frame(i = 1:3, j = 4:6, value = runif(3)),\n    c = list(c.a = 3, c.b = 4)\n  )\n)\n\nad\n\nAnnData object with n_obs × n_vars = 2 × 3\n    obs: 'group'\n    var: 'type'\n    uns: 'a', 'b', 'c'\n    obsm: 'ones', 'rand', 'zeros'\n    varm: 'ones', 'rand', 'zeros'\n    layers: 'spliced', 'unspliced'\n\n\nYou can read the information back out using the $ notation.\n\nad$X\n\n   var1 var2 var3\ns1    1    3    5\ns2    2    4    6\n\nad$obs\n\n   group\ns1     a\ns2     b\n\nad$obsm[[\"ones\"]]\n\n     [,1] [,2] [,3] [,4] [,5]\n[1,]    1    1    1    1    1\n[2,]    1    1    1    1    1\n\nad$layers[[\"spliced\"]]\n\n   var1 var2 var3\ns1    4    6    8\ns2    5    7    9\n\nad$uns[[\"b\"]]\n\n  i j      value\n1 1 4 0.03063135\n2 2 5 0.97626754\n3 3 6 0.70391182\n\n\n\nUsing scanpy\nA nice side-effect of loading this package is that it is now super easy to interact with scanpy through these AnnData objects.\n\nlibrary(reticulate)\n\nad$X\n\n   var1 var2 var3\ns1    1    3    5\ns2    2    4    6\n\nsc <- import(\"scanpy\")\nsc$pp$normalize_per_cell(ad)\n\nad$X\n\n       var1 var2     var3\ns1 1.166667  3.5 5.833333\ns2 1.750000  3.5 5.250000\n\n\n\n\nReading / writing AnnData objects\nRead from h5ad format:\nread_h5ad(\"pbmc_1k_protein_v3_processed.h5ad\")\n## AnnData object with n_obs × n_vars = 713 × 33538\n##     var: 'gene_ids', 'feature_types', 'genome', 'highly_variable', 'means', 'dispersions', 'dispersions_norm'\n##     uns: 'hvgParameters', 'normalizationParameters', 'pca', 'pcaParameters'\n##     obsm: 'X_pca'\n##     varm: 'PCs'\n\n\nCreating a view\nYou can use any of the regular R indexing methods to subset the AnnData object. This will result in a ‘View’ of the underlying data without needing to store the same data twice.\n\nview <- ad[, 2]\nview\n\nView of AnnData object with n_obs × n_vars = 2 × 1\n    obs: 'group', 'n_counts'\n    var: 'type'\n    uns: 'a', 'b', 'c'\n    obsm: 'ones', 'rand', 'zeros'\n    varm: 'ones', 'rand', 'zeros'\n    layers: 'spliced', 'unspliced'\n\nview$is_view\n\n[1] TRUE\n\nad[,c(\"var1\", \"var2\")]\n\nView of AnnData object with n_obs × n_vars = 2 × 2\n    obs: 'group', 'n_counts'\n    var: 'type'\n    uns: 'a', 'b', 'c'\n    obsm: 'ones', 'rand', 'zeros'\n    varm: 'ones', 'rand', 'zeros'\n    layers: 'spliced', 'unspliced'\n\nad[-1, ]\n\nView of AnnData object with n_obs × n_vars = 1 × 3\n    obs: 'group', 'n_counts'\n    var: 'type'\n    uns: 'a', 'b', 'c'\n    obsm: 'ones', 'rand', 'zeros'\n    varm: 'ones', 'rand', 'zeros'\n    layers: 'spliced', 'unspliced'\n\n\n\n\nAnnData as a matrix\nThe X attribute can be used as an R matrix:\n\nad$X[,c(\"var1\", \"var2\")]\n\n       var1 var2\ns1 1.166667  3.5\ns2 1.750000  3.5\n\nad$X[-1, , drop = FALSE]\n\n   var1 var2 var3\ns2 1.75  3.5 5.25\n\nad$X[, 2] <- 10\n\nYou can access a different layer matrix as follows:\n\nad$layers[\"unspliced\"]\n\n   var1 var2 var3\ns1    8   10   12\ns2    9   11   13\n\nad$layers[\"unspliced\"][,c(\"var2\", \"var3\")]\n\n   var2 var3\ns1   10   12\ns2   11   13\n\n\n\n\nNote on state\nIf you assign an AnnData object to another variable and modify either, both will be modified:\n\nad2 <- ad\n\nad$X[,2] <- 10\n\nlist(ad = ad$X, ad2 = ad2$X)\n\n$ad\n       var1 var2     var3\ns1 1.166667   10 5.833333\ns2 1.750000   10 5.250000\n\n$ad2\n       var1 var2     var3\ns1 1.166667   10 5.833333\ns2 1.750000   10 5.250000\n\n\nThis is standard Python behaviour but not R. In order to have two separate copies of an AnnData object, use the $copy() function:\n\nad3 <- ad$copy()\n\nad$X[,2] <- c(3, 4)\n\nlist(ad = ad$X, ad3 = ad3$X)\n\n$ad\n       var1 var2     var3\ns1 1.166667    3 5.833333\ns2 1.750000    4 5.250000\n\n$ad3\n       var1 var2     var3\ns1 1.166667   10 5.833333\ns2 1.750000   10 5.250000"
+  },
+  {
+    "objectID": "blog/posts/2021-02-02-anndata-for-r/index.html#future-work",
+    "href": "blog/posts/2021-02-02-anndata-for-r/index.html#future-work",
+    "title": "anndata: annotated data in R",
+    "section": "Future work",
+    "text": "Future work\nIn some cases, this package may still act more like a Python package rather than an R package. Some more helper functions and helper classes need to be defined in order to fully encapsulate AnnData() objects. Examples are:\n\nad$chunked_X(1)\n\n<generator object AnnData.chunked_X at 0x7f8d3424eac0>\n\n\nFollowing functionality has not been tested:\nad$rename_categories(...)\nad$strings_to_categoricals(...)\nCurrently not implemented are the read_zarr() and ad$write_zarr() functions. I need some example data to test this functionality."
+  },
+  {
+    "objectID": "blog/posts/2021-02-02-anndata-for-r/index.html#references",
+    "href": "blog/posts/2021-02-02-anndata-for-r/index.html#references",
+    "title": "anndata: annotated data in R",
+    "section": "References",
+    "text": "References\nWolf, F Alexander, Philipp Angerer, and Fabian J Theis. 2018. “SCANPY: Large-Scale Single-Cell Gene Expression Data Analysis.” Genome Biology 19 (February): 15. https://doi.org/10.1186/s13059-017-1382-0."
+  },
+  {
+    "objectID": "blog/posts/2020-12-15-diflow/index.html",
+    "href": "blog/posts/2020-12-15-diflow/index.html",
+    "title": "DiFlow",
+    "section": "",
+    "text": "Developing and maintaining pipelines/workflows can be a genuine challenge. Doing this in a collaborative context adds even more to this complexity. We all dream of a flexible platform that allows us to easily express the computational requirements and is able to then run those optimally.\nData Intuitive is working in a project where such a pipeline is being developed. The choice of the platform is NextFlow and very early on we decided that we wanted to use DSL2 even if it was very early stages.\nIt turned out, though, that DSL2 in itself did not yet grant us enough flexibility. We ended up creating a set of conventions for creating modules that enable us to achieve our collaborative development goal.\nA DiFlow pipeline is a combination of modules:\n\nA module contains one step in a larger process\nEach module is independent\nA module can be tested\nA module runs in a dedicated and versioned container\nA module takes a triplet as argument:\n\n[ ID, data, config ]\nPlease refer to the Github repository for more information and documentation."
+  },
+  {
+    "objectID": "blog/index.html",
+    "href": "blog/index.html",
+    "title": "Tech Talk Blog",
+    "section": "",
+    "text": "anndata: annotated data in R\n\n\nPorting anndata to R with reticulate.\n\n\n\n\nData science\n\n\n\n\n\n\n\n\n\n\n\nFeb 2, 2021\n\n\nRobrecht Cannoodt\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nDiFlow\n\n\n\n\n\n\n\n\n\n\n\n\nDec 15, 2020\n\n\nToni Verbeiren\n\n\n\n\n\n\nNo matching items"
+  },
+  {
+    "objectID": "careers_old.html",
+    "href": "careers_old.html",
+    "title": "Careers",
+    "section": "",
+    "text": "Data Intuitive is a Belgium-based company that specializes in bioinformatics, data science, and pipeline development. We are a team of highly skilled and experienced professionals who are dedicated to helping our clients unlock the potential of their data.\nOur team has a deep understanding of the latest technologies and techniques in the field of bioinformatics, and we are able to apply this knowledge to a wide range of applications. Whether you are looking to improve your understanding of complex biological systems, identify new drug targets, or develop more efficient and effective data analysis pipelines, we can help.\nAt Data Intuitive, we are always looking for talented and passionate individuals to join our team. If you are a data scientist, bioinformatician, or software engineer with a strong background in biology or computer science, we would love to hear from you.\nWe offer a dynamic and collaborative work environment, and our team members have the opportunity to work on a wide range of exciting projects. We are committed to providing ongoing support and training to help our employees develop their skills and advance their careers.\nIf you are interested in joining our team, please send your resume and a cover letter to info@data-intuitive.com. We look forward to hearing from you."
+  },
+  {
+    "objectID": "subscribe.html",
+    "href": "subscribe.html",
+    "title": "Data Intuitive",
+    "section": "",
+    "text": ":::{#subscribe} :::{.content-block} ## Application Form Enter your company information below and we will generate an invoice for you. You can pay this invoice via credit card or wire transfer. This invoice will be sent monthly until you notify us via email that you wish to terminate the contract.\n* A monthly fee will be invoiced. * The monthly service begins after your initial payment. * We will set up a dedicated support channel for you on Slack.\n\n\n\nFirst name *  Last Name *   Email *  \nCompany Name & Address \n\n \n\nBy submitting this form, you agree to the collection and use of your personal data in accordance with our privacy policy. Your data will be used solely for the purpose of responding to your inquiry and will not be shared with third parties. You have the right to access, modify, or erase your personal data at any time. \n:::"
+  },
+  {
+    "objectID": "insights/press/2022-12-15-fit_to_go_global/index.html",
+    "href": "insights/press/2022-12-15-fit_to_go_global/index.html",
+    "title": "Fit to Go Global",
+    "section": "",
+    "text": "We are thrilled to announce that this website is being launched with the funding of Flanders Investment and Trade (FIT). This funding will not only help us to create a professional and user-friendly website, but it will also support the international expansion of our company. We are grateful for the support and belief in our mission, and we look forward to working together as we continue to grow and develop on a global scale."
+  },
+  {
+    "objectID": "insights/press/2022-12-25-fueled_by_vlaio/index.html",
+    "href": "insights/press/2022-12-25-fueled_by_vlaio/index.html",
+    "title": "Fueled by VLAIO and Driven by innovation",
+    "section": "",
+    "text": "Data Intuitive is pleased to announce that we have received funding from VLAIO, which will bolster our research and development efforts as we continue to push the boundaries of data science and bioinformatics data pipelines. We are grateful for the support of VLAIO and are excited to see what the future holds as we continue to innovate and progress in our field."
+  },
+  {
+    "objectID": "insights/index.html",
+    "href": "insights/index.html",
+    "title": "Data Intuitive",
+    "section": "",
+    "text": "page-layout: custom section-divs: false toc: false editor: source\nlisting: - id: use_cases sort: “title” contents: “use_cases” image-align: left type: default categories: false max-items: 3 - id: news sort: “date desc” contents: “news” sort-ui: false filter-ui: false type: default max-items: 3 - id: blog sort: “date desc” contents: “blog” sort-ui: false filter-ui: false categories: true feed: true max-items: 3"
+  },
+  {
+    "objectID": "insights/blog/2021-02-02-anndata-for-r/index.html",
+    "href": "insights/blog/2021-02-02-anndata-for-r/index.html",
+    "title": "anndata: annotated data in R",
+    "section": "",
+    "text": "anndata is a commonly used Python package for keeping track of data and learned annotations, and can be used to read from and write to the h5ad file format. It is also the main data format used in the scanpy python package (Wolf, Angerer, and Theis 2018).\nHowever, using scanpy/anndata in R can be a major hassle. When trying to read an h5ad file, R users could approach this problem in one of two ways. A) You could read in the file manually (since it’s an H5 file), but this involves a lot of manual work and a lot of understanding on how the h5ad and H5 file formats work (also, expect major headaches from cryptic hdf5r bugs). Or B) interact with scanpy and anndata through reticulate, but run into issues converting some of the python objects into R.\nWe recently published anndata on CRAN, which is an R wrapper for the Python package – with some syntax sprinkled on top to make R users feel more at home.\nThe R anndata is still under active development at github.com/rcannood/anndata. If you encounter any issues, feel free to post an issue on GitHub!"
+  },
+  {
+    "objectID": "insights/blog/2021-02-02-anndata-for-r/index.html#installation",
+    "href": "insights/blog/2021-02-02-anndata-for-r/index.html#installation",
+    "title": "anndata: annotated data in R",
+    "section": "Installation",
+    "text": "Installation\nInstalling anndata is not particularly hard. You do need R and Python to be installed. If you don’t have a working installation of Python, you can let reticulate install Miniconda.\n# install the R anndata package\ninstall.packages(\"anndata\")\n\n# skip this if you wish to use the local python installation\nreticulate::install_miniconda()\n\n# skip this if anndata is already installed\nanndata::install_anndata()"
+  },
+  {
+    "objectID": "insights/blog/2021-02-02-anndata-for-r/index.html#getting-started",
+    "href": "insights/blog/2021-02-02-anndata-for-r/index.html#getting-started",
+    "title": "anndata: annotated data in R",
+    "section": "Getting started",
+    "text": "Getting started\nThe API of anndata is very similar to its Python counterpart. Check out ?anndata for a full list of the functions provided by this package.\nAnnData stores a data matrix X together with annotations of observations obs (obsm, obsp), variables var (varm, varp), and unstructured annotations uns.\nHere is an example of how to create an AnnData object with 2 observations and 3 variables.\n\nlibrary(anndata)\n\nad <- AnnData(\n  X = matrix(1:6, nrow = 2),\n  obs = data.frame(group = c(\"a\", \"b\"), row.names = c(\"s1\", \"s2\")),\n  var = data.frame(type = c(1L, 2L, 3L), row.names = c(\"var1\", \"var2\", \"var3\")),\n  layers = list(\n    spliced = matrix(4:9, nrow = 2),\n    unspliced = matrix(8:13, nrow = 2)\n  ),\n  obsm = list(\n    ones = matrix(rep(1L, 10), nrow = 2),\n    rand = matrix(rnorm(6), nrow = 2),\n    zeros = matrix(rep(0L, 10), nrow = 2)\n  ),\n  varm = list(\n    ones = matrix(rep(1L, 12), nrow = 3),\n    rand = matrix(rnorm(6), nrow = 3),\n    zeros = matrix(rep(0L, 12), nrow = 3)\n  ),\n  uns = list(\n    a = 1, \n    b = data.frame(i = 1:3, j = 4:6, value = runif(3)),\n    c = list(c.a = 3, c.b = 4)\n  )\n)\n\nad\n\nAnnData object with n_obs × n_vars = 2 × 3\n    obs: 'group'\n    var: 'type'\n    uns: 'a', 'b', 'c'\n    obsm: 'ones', 'rand', 'zeros'\n    varm: 'ones', 'rand', 'zeros'\n    layers: 'spliced', 'unspliced'\n\n\nYou can read the information back out using the $ notation.\n\nad$X\n\n   var1 var2 var3\ns1    1    3    5\ns2    2    4    6\n\nad$obs\n\n   group\ns1     a\ns2     b\n\nad$obsm[[\"ones\"]]\n\n     [,1] [,2] [,3] [,4] [,5]\n[1,]    1    1    1    1    1\n[2,]    1    1    1    1    1\n\nad$layers[[\"spliced\"]]\n\n   var1 var2 var3\ns1    4    6    8\ns2    5    7    9\n\nad$uns[[\"b\"]]\n\n  i j      value\n1 1 4 0.03063135\n2 2 5 0.97626754\n3 3 6 0.70391182\n\n\n\nUsing scanpy\nA nice side-effect of loading this package is that it is now super easy to interact with scanpy through these AnnData objects.\n\nlibrary(reticulate)\n\nad$X\n\n   var1 var2 var3\ns1    1    3    5\ns2    2    4    6\n\nsc <- import(\"scanpy\")\nsc$pp$normalize_per_cell(ad)\n\nad$X\n\n       var1 var2     var3\ns1 1.166667  3.5 5.833333\ns2 1.750000  3.5 5.250000\n\n\n\n\nReading / writing AnnData objects\nRead from h5ad format:\nread_h5ad(\"pbmc_1k_protein_v3_processed.h5ad\")\n## AnnData object with n_obs × n_vars = 713 × 33538\n##     var: 'gene_ids', 'feature_types', 'genome', 'highly_variable', 'means', 'dispersions', 'dispersions_norm'\n##     uns: 'hvgParameters', 'normalizationParameters', 'pca', 'pcaParameters'\n##     obsm: 'X_pca'\n##     varm: 'PCs'\n\n\nCreating a view\nYou can use any of the regular R indexing methods to subset the AnnData object. This will result in a ‘View’ of the underlying data without needing to store the same data twice.\n\nview <- ad[, 2]\nview\n\nView of AnnData object with n_obs × n_vars = 2 × 1\n    obs: 'group', 'n_counts'\n    var: 'type'\n    uns: 'a', 'b', 'c'\n    obsm: 'ones', 'rand', 'zeros'\n    varm: 'ones', 'rand', 'zeros'\n    layers: 'spliced', 'unspliced'\n\nview$is_view\n\n[1] TRUE\n\nad[,c(\"var1\", \"var2\")]\n\nView of AnnData object with n_obs × n_vars = 2 × 2\n    obs: 'group', 'n_counts'\n    var: 'type'\n    uns: 'a', 'b', 'c'\n    obsm: 'ones', 'rand', 'zeros'\n    varm: 'ones', 'rand', 'zeros'\n    layers: 'spliced', 'unspliced'\n\nad[-1, ]\n\nView of AnnData object with n_obs × n_vars = 1 × 3\n    obs: 'group', 'n_counts'\n    var: 'type'\n    uns: 'a', 'b', 'c'\n    obsm: 'ones', 'rand', 'zeros'\n    varm: 'ones', 'rand', 'zeros'\n    layers: 'spliced', 'unspliced'\n\n\n\n\nAnnData as a matrix\nThe X attribute can be used as an R matrix:\n\nad$X[,c(\"var1\", \"var2\")]\n\n       var1 var2\ns1 1.166667  3.5\ns2 1.750000  3.5\n\nad$X[-1, , drop = FALSE]\n\n   var1 var2 var3\ns2 1.75  3.5 5.25\n\nad$X[, 2] <- 10\n\nYou can access a different layer matrix as follows:\n\nad$layers[\"unspliced\"]\n\n   var1 var2 var3\ns1    8   10   12\ns2    9   11   13\n\nad$layers[\"unspliced\"][,c(\"var2\", \"var3\")]\n\n   var2 var3\ns1   10   12\ns2   11   13\n\n\n\n\nNote on state\nIf you assign an AnnData object to another variable and modify either, both will be modified:\n\nad2 <- ad\n\nad$X[,2] <- 10\n\nlist(ad = ad$X, ad2 = ad2$X)\n\n$ad\n       var1 var2     var3\ns1 1.166667   10 5.833333\ns2 1.750000   10 5.250000\n\n$ad2\n       var1 var2     var3\ns1 1.166667   10 5.833333\ns2 1.750000   10 5.250000\n\n\nThis is standard Python behaviour but not R. In order to have two separate copies of an AnnData object, use the $copy() function:\n\nad3 <- ad$copy()\n\nad$X[,2] <- c(3, 4)\n\nlist(ad = ad$X, ad3 = ad3$X)\n\n$ad\n       var1 var2     var3\ns1 1.166667    3 5.833333\ns2 1.750000    4 5.250000\n\n$ad3\n       var1 var2     var3\ns1 1.166667   10 5.833333\ns2 1.750000   10 5.250000"
+  },
+  {
+    "objectID": "insights/blog/2021-02-02-anndata-for-r/index.html#future-work",
+    "href": "insights/blog/2021-02-02-anndata-for-r/index.html#future-work",
+    "title": "anndata: annotated data in R",
+    "section": "Future work",
+    "text": "Future work\nIn some cases, this package may still act more like a Python package rather than an R package. Some more helper functions and helper classes need to be defined in order to fully encapsulate AnnData() objects. Examples are:\n\nad$chunked_X(1)\n\n<generator object AnnData.chunked_X at 0x7f8d3424eac0>\n\n\nFollowing functionality has not been tested:\nad$rename_categories(...)\nad$strings_to_categoricals(...)\nCurrently not implemented are the read_zarr() and ad$write_zarr() functions. I need some example data to test this functionality."
+  },
+  {
+    "objectID": "insights/blog/2021-02-02-anndata-for-r/index.html#references",
+    "href": "insights/blog/2021-02-02-anndata-for-r/index.html#references",
+    "title": "anndata: annotated data in R",
+    "section": "References",
+    "text": "References\nWolf, F Alexander, Philipp Angerer, and Fabian J Theis. 2018. “SCANPY: Large-Scale Single-Cell Gene Expression Data Analysis.” Genome Biology 19 (February): 15. https://doi.org/10.1186/s13059-017-1382-0.\nBack"
+  },
+  {
+    "objectID": "insights/blog/2020-12-15-diflow/index.html",
+    "href": "insights/blog/2020-12-15-diflow/index.html",
+    "title": "DiFlow",
+    "section": "",
+    "text": "Developing and maintaining pipelines/workflows can be a genuine challenge. Doing this in a collaborative context adds even more to this complexity. We all dream of a flexible platform that allows us to easily express the computational requirements and is able to then run those optimally.\nData Intuitive is working in a project where such a pipeline is being developed. The choice of the platform is NextFlow and very early on we decided that we wanted to use DSL2 even if it was very early stages.\nIt turned out, though, that DSL2 in itself did not yet grant us enough flexibility. We ended up creating a set of conventions for creating modules that enable us to achieve our collaborative development goal.\nA DiFlow pipeline is a combination of modules:\n\nA module contains one step in a larger process\nEach module is independent\nA module can be tested\nA module runs in a dedicated and versioned container\nA module takes a triplet as argument:\n\n[ ID, data, config ]\nPlease refer to the Github repository for more information and documentation.\nBack"
+  },
+  {
+    "objectID": "insights/use_cases/openproblems/index.html",
+    "href": "insights/use_cases/openproblems/index.html",
+    "title": "Open Problems for Single-Cell Analysis",
+    "section": "",
+    "text": "NeurIPS open problems are a set of challenging research problems in the field of artificial intelligence that are identified and presented at the annual NeurIPS conference. These problems are intended to stimulate research and encourage the development of new and innovative approaches to solving them.\nThe open problems are selected by the NeurIPS program committee and are typically related to current and emerging topics in machine learning and computational neuroscience. They are designed to be significant and impactful and they are meant to encourage collaboration and research.\nThe NeurIPS open problems competition is a separate event that is held in conjunction with the conference, in which researchers can submit their solutions to the open problems and compete for prizes. This competition data workflows are all developed with Viash.\n\n\n\n\n\n\nWarning\n\n\n\nThis content needs to be rewritten. I’d talk about the OpenProblemsv2, not the NeurIPS 2021 competition.\n\n\nBack"
+  },
+  {
+    "objectID": "insights/use_cases/openpipelines/index.html",
+    "href": "insights/use_cases/openpipelines/index.html",
+    "title": "Open Pipelines",
+    "section": "",
+    "text": "Breakthroughs in single-cell genomics have been made possible by the simultaneous advancement of experimental and computational technologies. While experimental techniques standardize quickly, computational analysis pipelines are more challenging to compare and thus vary. Analysis platforms such as Seurat and Scanpy have facilitated pipeline building and introduced basic quality standards. Furthermore, we have made first attempts at standardizing workflows for scRNA-seq to bridge the language-gap between these platforms and their users.\nHowever, as new analysis methods are being proposed at an increasing rate and novel multi-omic sequencing technologies are becoming commonplace, there is an urgent need for new analysis standards for single-cell (multi-)omics data.\nOpenPipelines are best-practice workflows for single-cell single- and multi-omics data. To ensure these workflows are accessible to non-experts and can be deployed in a fast and reproducible way, we will build these into reproducible, modular and updatable best-practice analysis pipelines using industry-standard workflow tools, high-performance versions of popular methods and an interoperable, language-independent framework.\nBack"
+  },
+  {
+    "objectID": "careers/dataworkflowdeveloper.html",
+    "href": "careers/dataworkflowdeveloper.html",
+    "title": "Bioinformatics Data Workflow Developer",
+    "section": "",
+    "text": "What we need\nData Intuitive is embarking on a new chapter and is seeking a highly skilled, scientifically minded IT professional to join our team. We are looking for an individual who is passionate about learning, eager to contribute to our team’s success, and excited to take on new challenges on this exciting new journey together.\nWhat we offer\nWe offer a very competitive salary, benefits, possibility of company car and equity stake. This is a full-time role, working remotely predominantly with a lot of flexibility in different ways to suit your personal circumstances. The team meets in the region of Ghent at a shared working space at key times throughout the year.\nJob requirements\n\nUnderstanding of fundamental biological principles\nA degree in bioinformatics, software engineering, computational biology, or other degree or proven experience in line with the requirements for this job\nStrong analytical skills\nStrong problem-solving skills\nIndependent and team player\nDriven by a technological curiosity and desire to make things better\nFluent in English\n\nTechnical requirements\n\nScripting languages (shell, python, R, etc.)\nUsing Git and GitHub (creating branches, pull requests, managing issues, github actions)\nModern workflow management systems (Nextflow, Snakemake, …)\nContainerisation (Docker, Podman, or Singularity)\nData wrangling tabular/structured data (tidyverse or pandas)\nLinux based operating systems, libraries and tools\nWriting documentation in Markdown\n\nNice to haves knowledge\n\nHigh performance computing environment\nCloud computing\nSingle-cell omics (scRNA-seq, multi-omics)\n\nSounds like you? Reach out to us at info@data-intuitive.com\nBack Apply"
+  },
+  {
+    "objectID": "careers/index.html",
+    "href": "careers/index.html",
+    "title": "Data Intuitive",
+    "section": "",
+    "text": "Careers\nJoin the Data Intuitive Team and Collaborate on Innovative Projects\n\n\n\n\n\n\n\n\n\n\nOur company is dedicated to research and development, and offers a range of services to help clients build their own expertise in bioinformatics and data science. We are known for our agile approach to projects, and we are always looking for new ways to solve challenging problems and make a difference in the industry. When you join us, you will have the chance to work on both client and in-house projects with the support of your colleagues at every stage of the process.\n\n\n\nAt Data Intuitive, we value the expertise and skills of our employees, which is why we offer highly competetive pay and seek to hire the strongest technical profiles. As a candidate, you will need to pass a technical test and participate in a technical interview to demonstrate your knowledge and ability to handle complex IT techniques.\n\n\n\nAs a member of our team, you can expect to work at a high technical level with talented colleagues. Our team is made up of remote workers who come together for in-person meetings six times per year to strengthen relationships and improve communication.\nCurrent open positions\n\n\n\n\n\n\n\n\n\n\nBioinformatics Data Workflow Developer\n\n\nRemote, Flanders - Belgium\n\n\n\n\n\n\n\n\n\n\n\n\nNo matching items\n\n\nApplication Form\n\n\nFirst name *  Last Name *   Email *   Upload your CV in PDF format  Message *\n\n\n \n\nBy submitting this form, you agree to the collection and use of your personal data in accordance with our privacy policy. Your data will be used solely for the purpose of responding to your inquiry and will not be shared with third parties. You have the right to access, modify, or erase your personal data at any time. \n:::"
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Data Intuitive",
+    "section": "",
+    "text": "Empowering Scientists\nData Intuitive develops intuitive tools and custom biotech data pipelines to help clients gain valuable insights and make data-driven decisions.\nMore about Data Intuitive\n\n\n\n\n\n\n\n\n\nStreamline your data pipelines with Viash\nViash simplifies the process of turning your scripts into modular building blocks that can be easily integrated into any data pipeline. Code generation automatically wraps your script into a complete module allowing you to focus on the functionality of your script.\nMore about our Solutions\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nTransforming Data Into Progress\n\nCustom development and optimization of modular bioinformatics data workflows with end-to-end support.\nTraining and consulting for biotech data workflows and Viash.\nAnalysis and interpretation of various types of data, including genomics, proteomics, and clinical data.\nSupport in setting up a data pipeline development process & infrastructure\n\nMore about our Services\n\n\n\n\n\n\nUse Cases: Open Source State-of-the-art Pipeline Modules\nViash is a popular tool used in various open source projects to create data pipeline modules and pipelines.\nNotable projects that use Viash include Open Problems, Open Pipelines and Tabula Sapiens. Viash is also frequently used in an industrial context by pharma clients and research centers.\nMore about our Use Cases\n\n\n\nElevate Your Data Workflows: Contact Us\nTransform your data workflow with Data Intuitive’s complete support from start to finish.\nOur team can assist with defining requirements, troubleshooting, and maintaining the final product, while providing end-to-end support. Contact us to elevate your data workflow.\nConnect with Us"
+  },
+  {
+    "objectID": "insights/news/2022-12-15-fit_to_go_global/index.html",
+    "href": "insights/news/2022-12-15-fit_to_go_global/index.html",
+    "title": "Fit to Go Global",
+    "section": "",
+    "text": "We are thrilled to announce that this website is being launched with the funding of Flanders Investment and Trade (FIT). This funding will not only help us to create a professional and user-friendly website, but it will also support the international expansion of our company. We are grateful for the support and belief in our mission, and we look forward to working together as we continue to grow and develop on a global scale.\nBack"
+  },
+  {
+    "objectID": "insights/news/2022-12-25-fueled_by_vlaio/index.html",
+    "href": "insights/news/2022-12-25-fueled_by_vlaio/index.html",
+    "title": "Fueled by VLAIO and Driven by innovation",
+    "section": "",
+    "text": "Data Intuitive is pleased to announce that we have received funding from VLAIO, which will bolster our research and development efforts as we continue to push the boundaries of data science and bioinformatics data pipelines. We are grateful for the support of VLAIO and are excited to see what the future holds as we continue to innovate and progress in our field.\nBack"
+  },
+  {
+    "objectID": "careers/data_workflow_developer/index.html",
+    "href": "careers/data_workflow_developer/index.html",
+    "title": "Bioinformatics Data Workflow Developer",
+    "section": "",
+    "text": "What we need\nData Intuitive is embarking on a new chapter and is seeking a highly skilled, scientifically minded IT professional to join our team. We are looking for an individual who is passionate about learning, eager to contribute to our team’s success, and excited to take on new challenges on this exciting new journey together.\nWhat we offer\nWe offer a very competitive salary, benefits, possibility of company car and equity stake. This is a full-time role, working remotely predominantly with a lot of flexibility in different ways to suit your personal circumstances. The team meets in the region of Ghent at a shared working space at key times throughout the year.\nJob requirements\n\nUnderstanding of fundamental biological principles\nA degree in bioinformatics, software engineering, computational biology, or other degree or proven experience in line with the requirements for this job\nStrong analytical skills\nStrong problem-solving skills\nIndependent and team player\nDriven by a technological curiosity and desire to make things better\nFluent in English\n\nTechnical requirements\n\nScripting languages (shell, python, R, etc.)\nUsing Git and GitHub (creating branches, pull requests, managing issues, github actions)\nModern workflow management systems (Nextflow, Snakemake, …)\nContainerisation (Docker, Podman, or Singularity)\nData wrangling tabular/structured data (tidyverse or pandas)\nLinux based operating systems, libraries and tools\nWriting documentation in Markdown\n\nNice to haves knowledge\n\nHigh performance computing environment\nCloud computing\nSingle-cell omics (scRNA-seq, multi-omics)\n\nSounds like you? Reach out to us at info@data-intuitive.com\nBack Apply"
+  },
+  {
+    "objectID": "contact.html",
+    "href": "contact.html",
+    "title": "Data Intuitive",
+    "section": "",
+    "text": "Contact Us\n\n\nFirst name *  Last Name *   Company email *   Phone Number  \n\n\n   I’m interested in your Data Pipelines services \n   I’m interested in a Viash support contract for non-profit \n   I’m interested in a Viash support contract for industry \n   I’m interested in Compass \n   I’m interested in different services \n   I’d like to know more about Data Intuitive \n   I’d like to subscribe to the Data Intuitive email list \n\n\nCompany name *  What are you looking for? \n\n\n \n\nBy submitting this form, you agree to the collection and use of your personal data in accordance with our privacy policy. Your data will be used solely for the purpose of responding to your inquiry and will not be shared with third parties. You have the right to access, modify, or erase your personal data at any time."
+  },
+  {
+    "objectID": "bookmeeting.html",
+    "href": "bookmeeting.html",
+    "title": "Data Intuitive",
+    "section": "",
+    "text": "Book a meeting with us"
+  },
+  {
+    "objectID": "insights/news/2023-02-20-ViashCourse/index.html",
+    "href": "insights/news/2023-02-20-ViashCourse/index.html",
+    "title": "Viash & VDSL3 Course Dates Announced!",
+    "section": "",
+    "text": "Join our Viash and VDSL3 course to experience the full benefits of Nextflow workflows in computational biology! With Nextflow’s outstanding portability, reproducibility, and scalability, it’s no wonder it’s one of the most popular workflow managers in the field. But developing a Nextflow pipeline can be challenging with a high barrier to entry and labor-intensive code. That’s where Viash comes in! With Viash, you can wrap your code into state-of-the-art Nextflow scripts called VDSL3 modules, solving these drawbacks. Viash also offers reusability, test-driven development, separation of concerns, and continuous testing, all in one package. Sign up now and start creating your Nextflow workflows with ease!\n\n\n\n\n\n\n\n\n\nDate\nLocation\nPrice\nStatus\n\n\n\n\nFeb 8 & 15 2023\nOn-line\n850 eur (industry) 450 euro (non-profit)\nFull\n\n\n\nBack"
+  }
+]
